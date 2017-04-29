@@ -1,8 +1,9 @@
 # Manylabs Flow BLE Design and Implementation Notes
 
-## Design
+## Intro
 
-We will use Serial Port Profile, essentially using serial port communications via bluetooth.
+This document describes the flow-ble design and will capture some of the experiments/implementation
+notes and other information pertinent to design decisions.
 
 ## Initial Tests
 
