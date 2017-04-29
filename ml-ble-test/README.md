@@ -22,7 +22,7 @@ cd ~/download/bluez-5.44
 make
 ```
 
-### Start Advertising and test GATT server
+### Start Advertising 
 
 ```bash
 cd ~/download/bluez-5.44
@@ -34,7 +34,7 @@ sudo tools/btmgmt -i hci0 advertising on
 sudo tools/btmgmt -i hci0 power on
 ```
 
-### Start Advertising and test GATT server
+### Test GATT server
 
 ```bash
 cd ~/download/bluez-5.44
@@ -42,7 +42,7 @@ tools/btgatt-server -i hci0 -s low -t public -r -v
 ```
 
 
-## Info About This Web App
+## Running This Web App
 
 To run locally, start serving from app directory, e.g. like this:
 
@@ -53,8 +53,6 @@ python -m SimpleHTTPServer 8888
 Then navigate to http://localhost:8888/.
 
 TODO: Make webapp available at https://manylabs.github.io/flow-ble/ml-ble-test/
-
-<img src="https://raw.githubusercontent.com/manylabs/flow-ble/ml-ble-test/ml-raspi.jpg">
 
 This web app tests the use of the Web Bluetooth API for getting sensor data from Manylabs multi-sensor RasPi device
 supporting the custom Manylabs multi-sensor service.
