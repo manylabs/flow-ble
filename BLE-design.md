@@ -13,10 +13,12 @@ On rpi:
 ```bash
 sdptool add --channel=22 SP
 sudo rfcomm listen /dev/rfcomm0 22
->> you'll see 
-Waiting for connection on channel 22
-```bash
+```
+You'll see something like this:
 
+```
+Waiting for connection on channel 22
+```
 
 On client (e.g. a Ubuntu laptop):
 
