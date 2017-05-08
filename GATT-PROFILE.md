@@ -13,18 +13,18 @@ Flow Info Service provides information that will be useful for automating the
 process of setting up a new RasPi device from a browser:
 
 * flow_pin
- * access: Read
- * Description: Allows reading of PIN from a newly installed flow service
+  * access: Read
+  * Description: Allows reading of PIN from a newly installed flow service
 
 * wifi_ssid
- * access: Read
- * Description: wifi ssid to connect to
- * Note: this is low priority future feature
+  * access: Read
+  * Description: wifi ssid to connect to
+  * Note: this is low priority future feature
 
 * wifi_password
- * access: Read
- * Description: password for wifi to connect to
- * Note: this is low priority future feature. There is a security concern
+  * access: Read
+  * Description: password for wifi to connect to
+  * Note: this is low priority future feature. There is a security concern
  that should be properly resolved
 
 ### Manylabs Realtime Service
@@ -41,19 +41,19 @@ See:
 Manylabs Realtime Service will offer the following characteristics:
 
 * sensor_measurement
- * access: Notify
- * Description: This characteristic is used to send a sensor values measurements
+  * access: Notify
+  * Description: This characteristic is used to send a sensor values measurements
 
 * sensor_list
- * access: Read
- * Description: This characteristic allows to query which sensors are configured and available on RasPi 
+  * access: Read
+  * Description: This characteristic allows to query which sensors are configured and available on RasPi 
 
 * sensor_ctrl
- * access: Write
- * Description: The sensor Control Point characteristic is used to enable a Client to write control points to a Server to control behavior.
- * For example the following will be specified:
-  * data reporting interval
-  * sensors selected for reporting (a subset of all available sensors in sensor_list)
+  * access: Write
+  * Description: The sensor Control Point characteristic is used to enable a Client to write control points to a Server to control behavior.
+  * For example the following will be specified:
+    * data reporting interval
+    * sensors selected for reporting (a subset of all available sensors in sensor_list)
  
 * sensor_status
  * access: Read, Notify
