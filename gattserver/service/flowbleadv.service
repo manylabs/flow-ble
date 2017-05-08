@@ -1,0 +1,14 @@
+[Unit]
+Description=Manylabs Flow BLE Service Advertisement
+After=syslog.target bluetooth.target 
+
+[Service]
+PIDFile=/var/run/ml-advertisement.pid
+#Type=simple
+ExecStart=/home/pi/download/bluez-5.44/test/ml-advertisement
+Restart=on-failure
+LimitNOFILE=10000
+
+[Install]
+WantedBy=multi-user.target
+
