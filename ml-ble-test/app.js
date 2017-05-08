@@ -2,7 +2,7 @@ var canvas = document.querySelector('canvas');
 var statusText = document.querySelector('#statusText');
 
 statusText.addEventListener('click', function() {
-  statusText.textContent = 'Retrieving sensor data...';
+  statusText.textContent = 'Retrieving some sensor data...';
   heartRates = [];
   manylabsSensor.connect()
   .then(() => manylabsSensor.startNotificationsHeartRateMeasurement().then(handleHeartRateMeasurement))
@@ -17,6 +17,9 @@ function handleHeartRateMeasurement(heartRateMeasurement) {
     statusText.innerHTML = heartRateMeasurement.heartRate;
     //statusText.innerHTML = heartRateMeasurement.heartRate + ' &#x2764;';
     heartRates.push(heartRateMeasurement.heartRate);
+    if (heartRates.length > 50) {
+      heartRates = heartRates.slice(5);
+    }
     drawWaves();
   });
 }
@@ -31,6 +34,7 @@ canvas.addEventListener('click', event => {
 
 function drawWaves() {
   requestAnimationFrame(() => {
+    //console.log("heartRates.length: " + heartRates.length);
     canvas.width = parseInt(getComputedStyle(canvas).width.slice(0, -2)) * devicePixelRatio;
     canvas.height = parseInt(getComputedStyle(canvas).height.slice(0, -2)) * devicePixelRatio;
 

@@ -1,5 +1,14 @@
 (function() {
   'use strict';
+  var http_proxy_service_name = 'http_proxy';
+  //var service_name = 'heart_rate';
+  // heart rate service: 180d
+  // 0000180d-0000-1000-8000-00805f9b34fb
+  // http_proxy service: 1823 (http_proxy standard name not recognized by bluez-5.44 yet)
+  var ml_service_id = '00001823-0000-1000-8000-00805f9b34fb'
+  var service_name = ml_service_id;
+  //var service_name = 'http_proxy';
+  //   optionalServices: ['ba42561b-b1d2-440a-8d04-0cefb43faece']
 
   class ManylabsSensor {
     constructor() {
@@ -8,7 +17,17 @@
       this._characteristics = new Map();
     }
     connect() {
-      return navigator.bluetooth.requestDevice({filters:[{services:[ 'heart_rate' ]}]})
+      //return navigator.bluetooth.requestDevice({filters:[{services:[ "heart_rate" ]}]})
+
+      return navigator.bluetooth.requestDevice({
+        // filters: [...] <- Prefer filters to save energy & show relevant devices.
+        acceptAllDevices: true,
+        optionalServices: ['heart_rate', ml_service_id]})
+      /*
+      */
+
+      //return navigator.bluetooth.requestDevice({filters:[{services:[ 'battery_service' ]}]})
+      //return navigator.bluetooth.requestDevice({filters:[{services:[ 'device_information' ]}]})
       .then(device => {
         this.device = device;
         return device.gatt.connect();
@@ -16,7 +35,7 @@
       .then(server => {
         this.server = server;
         return Promise.all([
-          server.getPrimaryService('heart_rate').then(service => {
+          server.getPrimaryService(service_name).then(service => {
             return Promise.all([
               this._cacheCharacteristic(service, 'body_sensor_location'),
               this._cacheCharacteristic(service, 'heart_rate_measurement'),

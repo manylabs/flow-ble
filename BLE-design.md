@@ -34,17 +34,18 @@ For test of RasPi BLE server, see (ml-ble-test/README)[ml-ble-test/README]
 
 This is the configuration of BLE manylabs deployment:
 
-rpi	 -> Browser/laptop/tablet 	->	Server
+Raspberry PI	 -> Browser/laptop/tablet 	->	Server
 
-rpi serves as BLE Peripheral. It's a server node that provide GATT services. It also advertises that the BLE peripheral device is available.
-Browser hosting a page accesses BLEserves as BLE Central, it's the client node, consumer of GATT services
-Browser hosting a page that accesses BLE will need to load using https protocol.
+Raspberry PI serves as BLE Peripheral. It has the server role that provide GATT services. 
+It also advertises that the BLE peripheral device with Manylabs flow service is available.
+Browser hosting a page accesses Raspberry PI and is in Central role, it also has the client role since it's a consumer of GATT services.
+Browser hosting a page that accesses BLE peripheral via Web Bluetooth has to load from the server using https protocol.
 
 ### Additional Design Notes
 
 Similar/related projects:
 
-We need to serve multiple sensor values periodically
+We need to serve multiple block values periodically
 
 * This shows how Nuimo service offers 13-byte "LED Characteristic". (python using Adafruit_BluefruitLE library)
 https://github.com/AravinthPanch/nuimo-bluetooth-low-energy-python
@@ -53,18 +54,61 @@ https://github.com/AravinthPanch/nuimo-bluetooth-low-energy-python
  shows how to advertise custom profile and implement gatt server in Python
 https://github.com/MostTornBrain/Waterrower
 
-* bluez for Linux contains C code example of a gatt server and tools that allow to advertise services 
+* pygatt - Python Module for Bluetooth LE Generic Attribute Profile (GATT).
+ * https://github.com/stratosinc/pygatt
+ * https://pypi.python.org/pypi/pygatt
+ * doesn't use dbus
+ * 
+ * active since 2013, about 4500 lines of code
+ * uses a c helper process - stardard tool gatttool which is part of bluez distribution
+	which is accessed via pipe from Python be sending commands, such as
+	the process is started once, so pipe communication should be fast
+
+* Bluetooth GATT SDK for Python
+ * python3 required
+ * https://github.com/getsenic/gatt-python
+ * uses dbus
+
+```
+- uses dbus for implementation, core code is about 1500 lines:
+wc bluepy/*.py
+       4      16     115 bluepy/__init__.py
+     140     448    4698 bluepy/blescan.py
+     734    2277   25754 bluepy/btle.py
+     201     418    5760 bluepy/get_services.py
+     498    1437   16504 bluepy/s
+```
+
+* bluepy Python interface to Bluetooth LE on Linux
+ * python gatt library (doesn't include gatt peripheral support yet)
+ * https://github.com/IanHarvey/bluepy
+ * doesn't use dbus
+ * uses a c helper process custom writte ./bluepy/bluepy-helper.c
+	which is accessed via pipe from Python be sending commands, such as
+	the process is started once, so pipe communication should be fast
+
+
+```
+- core code is about 500 lines:
+wc ./gatt/gatt_linux.py
+     594    1632   21977 ./gatt/gatt_linux.py
+```
+
+* bluez for Linux contains C and Python code example of a gatt server and tools that allow to advertise services 
+ * ./tools/tools/btgatt-server.c (C)
+ * ./test/example-gatt-server (Python)
+ * ./test/example-advertisement (Python)
 
 ## Changes Required in the Deployment
 
 * Server has to serve via https, since that's a requirement for Web BTE
  e.g. dataflow.manylabs.org production server, or local dev server normally running on non-secure port localhost:5000) 
 
-## Manylabs sensors GATT profile
+## Manylabs flow/blocks GATT profile
 
 ### Manylabs Realtime Service
 
-The realtime services will provide reporting of current value of one or more sensors.
+The realtime services will provide reporting of current value of one or more blocks.
 
 This service will use some of the patterns used in existing standard GATT profiles, such as Heart Rate Profile
 
@@ -74,32 +118,31 @@ https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.blueto
 
 Manylabs Realtime Service will offer the following characteristics:
 
-* sensor_measurement
+* block_value
  access: Notify
- Description: This characteristic is used to send a sensor values measurements
+ Description: This characteristic is used to send a block values measurements
 
-* sensor_list
+* block_list
  access: Read
- Description: This characteristic allows to query which sensors are configured and available on RasPi 
+ Description: This characteristic allows to query which blocks are configured and available on RasPi 
 
-* sensor_ctrl
+* block_ctrl
  access: Write
- Description: The sensor Control Point characteristic is used to enable a Client to write control points to a Server to control behavior.
+ Description: The block Control Point characteristic is used to enable a Client to write control points to a Server to control behavior.
  For example the following will be specified:
   * data reporting interval
-  * sensors selected for reporting (a subset of all available sensors in sensor_list)
+  * blocks selected for reporting (a subset of all available blocks in block_list)
  
-* sensor_status
+* block_status
  access: Read, Notify
- Description: Allow to query sensor status such as error condition on the sensor and 
-  is also used to notify the client about change in sensor status
-
+ Description: Allow to query block status such as error condition on the block and 
+  is also used to notify the client about change in block status
 
 TODO:
 
-* finalize need for homogeneous timestamps accross sensors
-  - for now, the design assumes timestamps are identical accross sensors to 
-    increase data throughput/efficiency for multipe sensors (e.g. all sensors report at 1 second interval or 1 minute interval)
+* finalize need for homogeneous timestamps accross blocks
+  - for now, the design assumes timestamps are identical accross blocks to 
+    increase data throughput/efficiency for multipe blocks (e.g. all blocks report at 1 second interval or 1 minute interval)
 
 ### Manylabs History Service
 
@@ -110,25 +153,33 @@ This assumes that a local storage is provided on RasPi.
 
 Manylabs Realtime Service will offer the following characteristics:
 
-* sensor_list
+* block_list
  access: Read
- Description: This characteristic allows to query which sensors are configured and available on RasPi 
+ Description: This characteristic allows to query which blocks are configured and available on RasPi 
 
-* sensor_history
+* block_history
  access: Read
- Description: This characteristic is used to send a sensor values measurements
+ Description: This characteristic is used to send a block values measurements
 
-* sensor_history_ctrl
+* block_history_ctrl
  access: Write
- Description: The sensor Control Point characteristic is used to enable a Client to write control points to a Server to control behavior.
+ Description: The block Control Point characteristic is used to enable a Client to write control points to a Server to control behavior.
  For example the following will be specified:
   * data reporting interval
-  * sensors selected for reporting
+  * blocks selected for reporting
+
+Because of GATT BLE spec constraints, history payloads will not be greater than BLE_GATTS_VAR_ATTR_LEN_MAX (which is 512)
 
 TODO: 
 
-* finalize local storage of sensor data on RasPI in order to decide on ML history service approach
+* finalize local storage of block data on RasPI in order to decide on ML history service approach
 * then design details of services, probably based on reporting several points in blocks of characteristics
+* consider using standard GATT profile for this: HPS - HTTP Proxy Service
+ * HTTP Proxy Service - Bluetooth SIG: https://www.bluetooth.org/docman/handlers/downloaddoc.ashx?doc_id=308344
+ https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.service.http_proxy.xml
+
+Speed performance note:
+BLE supports 0.3Mbps, thus the speed of history transfer will be less than this value.
 
 ### GATT BLE Flow Integration
 
@@ -139,7 +190,7 @@ How do we implement communication between flow daemon and flow-ble which may run
 Although there are other approaches possible, one way to providing a clean and de-coupled communication between flow daemon and 
 flow-ble module would be to add the following features to flow daemon:
 
-* posting of real time sensor data to a queue, such as MQTT service 
+* posting of real time block data to a queue, such as MQTT service 
 * flow-ble would serve the data to BLE client/Central/bluetooth-web app as it appears in MQTT
 
 This would steer the implementation on RasPi towards a robust microservices architecture, and also:
