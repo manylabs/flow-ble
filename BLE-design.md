@@ -43,6 +43,10 @@ Browser hosting a page that accesses BLE peripheral via Web Bluetooth has to loa
 
 ### Additional Design Notes
 
+Note: although we are going to use a Python based approach via dbus, the 
+notes below will be kept here for historical purposes.
+
+
 Similar/related projects:
 
 We need to serve multiple block values periodically
@@ -62,6 +66,7 @@ https://github.com/MostTornBrain/Waterrower
  * active since 2013, about 4500 lines of code
  * uses a c helper process - stardard tool gatttool which is part of bluez distribution
 	which is accessed via pipe from Python be sending commands, such as
+	./pygatt/backends/gatttool/gatttool.py
 	the process is started once, so pipe communication should be fast
 
 * Bluetooth GATT SDK for Python
@@ -106,80 +111,7 @@ wc ./gatt/gatt_linux.py
 
 ## Manylabs flow/blocks GATT profile
 
-### Manylabs Realtime Service
-
-The realtime services will provide reporting of current value of one or more blocks.
-
-This service will use some of the patterns used in existing standard GATT profiles, such as Heart Rate Profile
-
-See 
-https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.service.heart_rate.xml
-https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.characteristic.heart_rate_measurement.xml
-
-Manylabs Realtime Service will offer the following characteristics:
-
-* block_value
- access: Notify
- Description: This characteristic is used to send a block values measurements
-
-* block_list
- access: Read
- Description: This characteristic allows to query which blocks are configured and available on RasPi 
-
-* block_ctrl
- access: Write
- Description: The block Control Point characteristic is used to enable a Client to write control points to a Server to control behavior.
- For example the following will be specified:
-  * data reporting interval
-  * blocks selected for reporting (a subset of all available blocks in block_list)
- 
-* block_status
- access: Read, Notify
- Description: Allow to query block status such as error condition on the block and 
-  is also used to notify the client about change in block status
-
-TODO:
-
-* finalize need for homogeneous timestamps accross blocks
-  - for now, the design assumes timestamps are identical accross blocks to 
-    increase data throughput/efficiency for multipe blocks (e.g. all blocks report at 1 second interval or 1 minute interval)
-
-### Manylabs History Service
-
-The history service will provide reporting of history of values. This is useful if the webapp wants to pull past history
-date in order to display a chart for the last hour/day/week.
-
-This assumes that a local storage is provided on RasPi.
-
-Manylabs Realtime Service will offer the following characteristics:
-
-* block_list
- access: Read
- Description: This characteristic allows to query which blocks are configured and available on RasPi 
-
-* block_history
- access: Read
- Description: This characteristic is used to send a block values measurements
-
-* block_history_ctrl
- access: Write
- Description: The block Control Point characteristic is used to enable a Client to write control points to a Server to control behavior.
- For example the following will be specified:
-  * data reporting interval
-  * blocks selected for reporting
-
-Because of GATT BLE spec constraints, history payloads will not be greater than BLE_GATTS_VAR_ATTR_LEN_MAX (which is 512)
-
-TODO: 
-
-* finalize local storage of block data on RasPI in order to decide on ML history service approach
-* then design details of services, probably based on reporting several points in blocks of characteristics
-* consider using standard GATT profile for this: HPS - HTTP Proxy Service
- * HTTP Proxy Service - Bluetooth SIG: https://www.bluetooth.org/docman/handlers/downloaddoc.ashx?doc_id=308344
- https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.service.http_proxy.xml
-
-Speed performance note:
-BLE supports 0.3Mbps, thus the speed of history transfer will be less than this value.
+See GATT-PROFILE
 
 ### GATT BLE Flow Integration
 
@@ -202,7 +134,7 @@ and eventually in Python, if necessary
 
 ## Other Changes Recommended for the Deployment and Data Flow
 
-Since Web BTE supports discovery, manylabs dataflow setup can be simplified by allowing
+Since Web BLE supports discovery, manylabs dataflow setup can be simplified by allowing
 manylabs browser UI to perform the discovery of rpi, then saving it in the configuration.
 Another feature could be to make manually inserting PIN on the server after running flow on rpi for the first time un-necessary.
 

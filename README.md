@@ -3,6 +3,23 @@
 * Design: [BLE-design](BLE-design.md)
 * GATT Custom Profile Specification: Work in progress
 
+## Pre-Requisites
+
+
+
+On Raspian, the functionality as described below required an upgrade to the latest kernel kernel 1.20170427
+and may only partially work with older Raspian version.
+
+Also, BLE functionality was developed and tested on Ubuntu  16.04.1 with kernel as shown below
+and should work.
+
+```bash
+uname -a
+Linux peter-u16 4.4.0-75-generic #96-Ubuntu SMP Thu Apr 20 09:56:33 UTC 2017 x86_64 x86_64 x86_64 GNU/Linux
+peter@peter-u16:~$ cat /etc/issue
+Ubuntu 16.04.1 LTS \n \l
+```
+
 ## Setting Up Bluetooth
 
 Assuming an older stock version of Bluetooth is already installed on your system,
@@ -43,6 +60,28 @@ ExecStart=/home/pi/download/bluez-5.44/src/bluetoothd -E
 
 * Verify bluetooth still works and experimental mode is working properly
 
+### Verify bluetooth still works 
+
+
+#### Initializing BLE
+
+Note: the "Disables BR/EDR" command below is not necessary on RasPi
+but is needed if developing and testing on other platforms, such as Ubuntu x86_64
+
+```bash
+btmgmt -i hci0 power off 
+btmgmt -i hci0 le on
+btmgmt -i hci0 connectable on
+# Set alias. This only needs to be done once
+btmgmt -i hci0 name "Manylabs BLE"
+
+# this line is necessary for some BT chipsets, otherwise gatt server will not
+# receive connections
+# see http://stackoverflow.com/questions/27552644/bluetooth-low-energy-android-gatt-client-connect-to-linux-gatt-server
+btmgmt -i hci0 bredr off        # Disables BR/EDR !
+btmgmt -i hci0 advertising on
+btmgmt -i hci0 power on
+```
 
 
 ## Install Manylabs BLE Service (flow-ble)

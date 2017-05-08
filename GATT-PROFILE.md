@@ -6,6 +6,27 @@
 
 Characteristic Discovery
 
+
+### Manylabs Flow Info Service
+
+Flow Info Service provides information that will be useful for automating the
+process of setting up a new RasPi device from a browser:
+
+* flow_pin
+ access: Read
+ Description: Allows reading of PIN from a newly installed flow service
+
+* wifi_ssid
+ access: Read
+ Description: wifi ssid to connect to
+ Note: this is low priority future feature
+
+* wifi_password
+ access: Read
+ Description: password for wifi to connect to
+ Note: this is low priority future feature. There is a security concern
+ that should be properly resolved
+
 ### Manylabs Realtime Service
 
 The realtime services will provide reporting of current value of one or more sensors.
