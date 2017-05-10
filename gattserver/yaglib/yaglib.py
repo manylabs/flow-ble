@@ -77,7 +77,6 @@ class Application(dbus.service.Object):
     def GetManagedObjects(self):
         response = {}
         print('GetManagedObjects')
-
         for service in self.services:
             response[service.get_path()] = service.get_properties()
             chrcs = service.get_characteristics()
@@ -190,7 +189,15 @@ class Characteristic(dbus.service.Object):
 
     # decoding methods
     def decode_to_string(self, value):
-        return "abc"
+        """Decodes char byte array to string.
+        Args:
+            value: array.array of bytes (char codes)
+        """
+        #if python3 or python 2.7
+        ret = bytearray(value).decode(encoding='UTF-8')
+        #if python2.7
+        #ret = str(bytearray(value))
+        return ret
 
     ############## dbus methods ##################
 
@@ -225,9 +232,7 @@ class Characteristic(dbus.service.Object):
         print('Default StopNotify called, returning error')
         raise NotSupportedException()
 
-    @dbus.service.signal(DBUS_PROP_IFACE,
-                         signature='sa{sv}as')
-
+    @dbus.service.signal(DBUS_PROP_IFACE, signature='sa{sv}as')
     def PropertiesChanged(self, interface, changed, invalidated):
         pass
 

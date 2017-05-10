@@ -8,10 +8,12 @@ https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.blueto
 Individual Characteristics:
 https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.characteristic.uri.xml
 https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.characteristic.http_headers.xml
-https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.characteristic.uri.xml
+https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.characteristic.http_status_code.xml
 etc.
 
-Services:
+== Service and Characteristics Summary
+
+Service:
 UUID: 1823
 
 Characteristics:
@@ -23,7 +25,7 @@ HTTP Headers        utf8s   2ab7    Read, Write, Read Long, Write Long
 HTTP Entity Body    utf8s   2ab8    Read, Write, Read Long, Write Long
 HTTP Control Point  uint8   2ab9    Write
 HTTP Status Code    uint8   2aba    Notify
-HTTPS Security              2abb    Read
+HTTPS Security      boolean 2abb    Read
 
 Characteristics class names/property nanes used in the implementation below:
 
@@ -35,6 +37,8 @@ HttpEntityBodyChrc      http_entity_body
 HttpControlPointChrc    http_control_point
 HttpStatusCodeChrc      http_status_code
 HttpSecurityChrc        https_security
+
+== How it works
 
 Here is the full execution sequence on the client:
 
@@ -53,9 +57,10 @@ Here is a more limited the sequence flow-ble service will need:
  * if success: read http_entity_body
 
 
+
 """
 
-
+from array import array
 from random import randint
 import dbus
 """Implements http_proxy service
@@ -66,17 +71,21 @@ import dbus
 #except ImportError:
 #  import gobject as GObject
 from gi.repository import GObject
-from yaglib import Service, Characteristic, Descriptor 
+from yaglib import Service, Characteristic, Descriptor
 
-
-verbose = True 
+# set to 0 to disable all logging/tracing/printing
+# 1: to allow only error printing
+# 2: to allow both errors and info logging 
+#verboseLevel = 0
+verboseLevel = 1
 
 def log(message):
-    if verbose:
+    if verboseLevel > 1:
         print(message)
 
 def log_error(message):
-    print(message)
+    if verboseLevel > 0:
+        print(message)
 
 # http status code info
 # https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.characteristic.http_status_code.xml
@@ -84,46 +93,94 @@ STATUS_BIT_HEADERS_RECEIVED = 1
 STATUS_BIT_HEADERS_TRUNCATED = 2
 STATUS_BIT_BODY_RECEIVED = 4
 STATUS_BIT_BODY_TRUNCATED = 8
+# this bit is currently reserved for future use, we define it to indicate winsock operation
+STATUS_EXTENDED_BIT_WEBSOCKET = 16
 
 class HttpProxyService(Service):
     """http_proxy standard GATT profile/service. 
+
+    Example:
+
+    This service is used like this:
+    * the server, when creating the service, specifies a custom callback
+      for processing client requests
+    * the client enables notifications on http_status_code characteristic
+      so that it can receive replies via http_status_code notifications
+    * the client writes URI
+    * the client writes http_control_point
+     * the service calls server implementation via the custom callback
+     * the server implementation provides the data, it could be any data retrieval:
+       in classical "proxy" sense it can perform an HTTP request to get the data,
+       or it can retrieve data from a queue that is serviing the URI specified via
+       uri characteristic
+     * the server places the acquired data into http_entity_body characteristic
+       for later retrieval by the client
+     * the server sets http_status_code for notifications
+     * now that data is ready, a notification is triggered on http_status_code characteristic
+    * the client receives notification for http_status_code
+    * the client retrieves the response body via read of http_entity_body characteristic
+
+    Optional websocket support (this is not mention the the spec 
+        but will not break non-winsock HttpProxy service):
+    If request was websocket (i.e. scheme in URI was wss or ws), 
+    the server may keep sending sending additional data via writing new values into http_entity_body
+    and trigger additional notifications on http_status_code characteristic.
+    In this case the client code is like above, except it will continue executing the last two 
+    statement "receives notification" and retrieves the response body, in a continuous loop until
+    it stops notifications.
+    Care must be taken on the server side to handle writing new http_entity_body values too 
+    quickly, e.g. the server may want to wait until http_entity_body has been read before
+    changing it to new value.
+
 
     """
     # HPS service UUID as per spec
     SERVICE_UUID = '00001823-0000-1000-8000-00805f9b34fb'
 
-    def __init__(self, bus, index):
+    def __init__(self, bus, index, charc_rw_cb):
+        """ctor.
+        Args:
+            charc_rw_cb: callback to call on control point write
+
+              it has the signature charc_rw_cb(charc, read_or_write, options, value=None) where
+              charc is haracteristic calling back (i.e. this instance of Characteristic)
+
+        """
         Service.__init__(self, bus, index, self.SERVICE_UUID, True)
+        self.charc_rw_cb = charc_rw_cb
         self.add_characteristic(UriChrc(bus, 0, self))
         self.add_characteristic(HttpHeadersChrc(bus, 1, self))
         self.http_entity_body_chrc = HttpEntityBodyChrc(bus, 2, self)
         self.add_characteristic(self.http_entity_body_chrc)
-        self.add_characteristic(HttpControlPointChrc(bus, 3, self))
+        self.http_control_point_chrc = HttpControlPointChrc(bus, 3, self)
+        self.add_characteristic(self.http_control_point_chrc)
         self.http_status_code_chrc = HttpStatusCodeChrc(bus, 4, self)
         self.add_characteristic(self.http_status_code_chrc)
         self.https_security_chrc = HttpSecurityChrc(bus, 5, self)
         self.add_characteristic(self.https_security_chrc)
-        self.energy_expended = 0
 
     def cancel_request(self):
-        # TODO: adjust state
+        """Adjust state if canceled. 
+        This is not needed for this service and therefore is a noop."""
         pass 
 
-    def do_request(self, method):
+    def do_request_delete(self, method):
         """Perform a synchronous request, 
         using current values for uri, method etc.
         Fill http_entity_body that can be retrieved by client.
         Then initiate notification.
 
         """
+        log("do_request: %s" % method)
         if method != "GET":
             log_error("Unsupported method: %s" % method)
             raise FailedException("0x80")
-        self.http_entity_body_chrc.http_entity_body = '{"timestamp": "2017-05-04T01:38:00.336090Z", "type": "sensor_update", "parameters": {"values": [12.0], "name": "light"}}'
+        #self.http_entity_body_chrc.http_entity_body = '{"timestamp": "2017-05-04T01:38:00.336090Z", "type": "sensor_update", "parameters": {"values": [12.0], "name": "light"}}'
+        self.http_entity_body_chrc.set_http_entity_body('{"timestamp":"2017-05-04T01:38:00.336090Z","type":"sensor_update","parameters":{"values":[12.0],"name":"light"}}')
         # assume no header and body not truncated
         status_code = STATUS_BIT_BODY_RECEIVED
-        self.set_http_status_code(status_code)
-         
+        self.http_status_code_chrc.set_http_status_code(status_code)
+
 
 class UriChrc(Characteristic):
     # https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.characteristic.uri.xml
@@ -133,7 +190,7 @@ class UriChrc(Characteristic):
         Characteristic.__init__(
                 self, bus, index,
                 self.CHRC_UUID,
-                ['notify'],
+                ['write'],
                 service)
         self.notifying = False
         self.uri = ""
@@ -142,8 +199,8 @@ class UriChrc(Characteristic):
         """Save uri locally.
 
         """
-        log('UriChrc.WriteValue')
-        self.uri = self.decode_to_string(value)
+        self.uri = str(self.decode_to_string(value))
+        log('UriChrc.WriteValue: self.uri=%s' % self.uri)
 
 
 class HttpHeadersChrc(Characteristic):
@@ -169,12 +226,56 @@ class HttpEntityBodyChrc(Characteristic):
                 self.CHRC_UUID,
                 ['read'],
                 service)
-        self.http_entity_body = ""
+        self._http_entity_body = ""
+        self.set_http_entity_body(self._http_entity_body)
+
+    def set_http_entity_body(self, value):
+        self._http_entity_body = value 
+        if not value:
+            self.http_entity_body_encoded = []
+        else:
+            #value = array('B', b'This is a characteristic for testing')
+            value = array('b')
+            value.frombytes(self._http_entity_body.encode())
+            value = value.tolist()
+            self.http_entity_body_encoded = value 
+        log("set_http_entity_body: self._http_entity_body=%s" % self._http_entity_body)
+        log("set_http_entity_body: self.http_entity_body_encoded=%s" % self.http_entity_body_encoded)
 
     def ReadValue(self, options):
-        # 
-        # return [ 0x01 ]
-        return self.http_entity_body
+        """
+
+        Trace info related to options:
+            offset = options.get(dbus.String('offset'))[]
+            HttpEntityBodyChrc.ReadValue: options=dbus.Dictionary({dbus.String('device'): dbus.ObjectPath('/org/bluez/hci0/dev_60_F8_1D_CD_D3_B7', variant_level=1), dbus.String('offset'): dbus.UInt16(103, variant_level=1)}, signature=dbus.Signature('sv'))
+            ...
+            HttpEntityBodyChrc.ReadValue: options=dbus.Dictionary({dbus.String('device'): dbus.ObjectPath('/org/bluez/hci0/dev_60_F8_1D_CD_D3_B7', variant_level=1), dbus.String('offset'): dbus.UInt16(412, variant_level=1)}, signature=dbus.Signature('sv'))
+
+            ui = dbus.UInt16(103, variant_level=1)
+            In [65]: ui.real
+            Out[65]: 103
+
+        bluez sends up to 102 characters at a time for long value reads (2nd read is at offset 103), 
+        so there will be 5 reads for 512 character string
+
+        So for example, these two invocations will be done by bluez system into this function to read 112 bytes:
+
+            HttpEntityBodyChrc.ReadValue: options=dbus.Dictionary({dbus.String('device'): dbus.ObjectPath('/org/bluez/hci0/dev_60_F8_1D_CD_D3_B7', variant_level=1)}, signature=dbus.Signature('sv'))
+            HttpEntityBodyChrc.ReadValue: [123, 34, 116, 105, 109, 101, 115, 116, 97, 109, 112, 34, 58, 34, 50, 48, 49, 55, 45, 48, 53, 45, 48, 52, 84, 48, 49, 58, 51, 56, 58, 48, 48, 46, 51, 51, 54, 48, 57, 48, 90, 34, 44, 34, 116, 121, 112, 101, 34, 58, 34, 115, 101, 110, 115, 111, 114, 95, 117, 112, 100, 97, 116, 101, 34, 44, 34, 112, 97, 114, 97, 109, 101, 116, 101, 114, 115, 34, 58, 123, 34, 118, 97, 108, 117, 101, 115, 34, 58, 91, 49, 50, 46, 48, 93, 44, 34, 110, 97, 109, 101, 34, 58, 34, 108, 105, 103, 104, 116, 34, 125, 125] (112) from offset 0 out of 112
+            HttpEntityBodyChrc.ReadValue: options=dbus.Dictionary({dbus.String('device'): dbus.ObjectPath('/org/bluez/hci0/dev_60_F8_1D_CD_D3_B7', variant_level=1), dbus.String('offset'): dbus.UInt16(103, variant_level=1)}, signature=dbus.Signature('sv'))
+            HttpEntityBodyChrc.ReadValue: [34, 108, 105, 103, 104, 116, 34, 125, 125] (9) from offset 103 out of 112
+
+        """
+        log('HttpEntityBodyChrc.ReadValue: options=%s' % options)
+        #log("HttpEntityBodyChrc.ReadValue: self.http_entity_body_encoded=%s" % self.http_entity_body_encoded)
+        offset = 0
+        if options.get(dbus.String('offset')):
+          offset = options.get(dbus.String('offset')).real
+        value = self.http_entity_body_encoded[offset:]
+        log('HttpEntityBodyChrc.ReadValue: %s (%d) from offset %d out of %d' % (value, len(value), offset, len(self.http_entity_body_encoded)))
+        self.service.charc_rw_cb(self, 'read', options, value)
+        return value
+
 
 
 CONTROL_POINT_MAP = {
@@ -212,9 +313,29 @@ class HttpControlPointChrc(Characteristic):
                 <Enumeration key="10" value="HTTPS DELETE Request" requires="N/A" description="Initiates an HTTPS DELETE Request." />
                 <Enumeration key="11" value="HTTP Request Cancel" requires="N/A" description="Terminates any executing HTTP Request from the HPS Client." />
 
+    1: ("GET",     "http"),
+    2: ("HEAD",    "http"),
+    3: ("POST",    "http"),
+    4: ("PUT",     "http"),
+    5: ("DELETE",  "https"),
+    6: ("GET",     "https"),
+
     """
 
     CHRC_UUID = '00002ab9-0000-1000-8000-00805f9b34fb'
+    # methods
+    GET     = 1
+    HEAD    = 2
+    POST    = 3
+    PUT     = 4
+    DELETE  = 5
+    # secure versions of methods
+    GETS    = 6
+    HEADS   = 7
+    POSTS   = 8
+    PUTS    = 9
+    DELETES = 10
+    
 
     def __init__(self, bus, index, service):
         Characteristic.__init__(
@@ -222,20 +343,20 @@ class HttpControlPointChrc(Characteristic):
                 self.CHRC_UUID,
                 ['write'],
                 service)
-        # uninitialized. Valid production values are 1 to 11
+        # Uninitialized. Valid production values are 1 to 11
         self.value = 0
 
     def WriteValue(self, value, options):
         """When write control point is invoked by the system,
 
         """
-        log('Heart Rate Control Point WriteValue called')
+        log('HttpControlPointChrc.WriteValue')
 
         if len(value) != 1:
             raise InvalidValueLengthException()
 
         byte = value[0]
-        log('Control Point value: ' + repr(byte))
+        log('HttpControlPointChrc.WriteValue: %s' % repr(byte))
 
         self.value = int(byte)
         if self.value < 1 or self.value > 11:
@@ -244,10 +365,15 @@ class HttpControlPointChrc(Characteristic):
             # cancel 
             self.service.cancel_request()
         else:
-            method = CONTROL_POINT_MAP[self.value]
-            log('HttpControlPointChrc: WriteValue: invoking do_request')
-            self.service.do_request(method)
+            # notify service write was performed
+            log('HttpControlPointChrc: WriteValue: invoking service.charc_rw_cb')
+            self.service.charc_rw_cb(self, 'write', options, value)
+            #log('HttpControlPointChrc: WriteValue: invoking do_request')
+            #self.service.do_request(self._ctrl_point_to_method(self.value))
 
+    def _ctrl_point_to_method(self, value):
+        """Convert control point value to corresponding method"""
+        return CONTROL_POINT_MAP[self.value][0]
 
 
 class HttpStatusCodeChrc(Characteristic):
@@ -259,6 +385,7 @@ class HttpStatusCodeChrc(Characteristic):
 
     """
     CHRC_UUID = '00002aba-0000-1000-8000-00805f9b34fb'
+    STATUS_BIT_BODY_RECEIVED = 4
 
     def __init__(self, bus, index, service):
         Characteristic.__init__(
@@ -271,20 +398,19 @@ class HttpStatusCodeChrc(Characteristic):
 
     def set_http_status_code(self, value):
         self.http_status_code = value 
-        self.do_notify()
+
 
     def do_notify(self):
-        """Notify/Send status code to dbus"""
+        """Trigger notify (Send http_status_code to dbus)"""
         if self.notifying:
-            value = []
-            value.append(dbus.Byte(http_status_code))
-            log('do_notify: sending ' % repr(value))
-            self.PropertiesChanged(Characteristic.IFACE, 
-                { 'Value': value }, [])
+            value = [dbus.Byte(self.http_status_code)]
+            log('do_notify: http_status_code: %s (%s)' % (self.http_status_code, repr(value)))
+            self.PropertiesChanged(Characteristic.IFACE, { 'Value':  value }, [])
 
     def StartNotify(self):
+        log('StartNotify')
         if self.notifying:
-            #log('Already notifying, nothing to do')
+            #log('StartNotify: Already notifying, nothing to do')
             return
 
         self.notifying = True
@@ -293,14 +419,13 @@ class HttpStatusCodeChrc(Characteristic):
         if not self.notifying:
             log('StopNotify: Not notifying, nothing to do')
             return
-
         self.notifying = False
-
 
 
 class HttpSecurityChrc(Characteristic):
     """HTTP Status Code :           
         2abb    Read
+       Default value: false
     """
     CHRC_UUID = '00002abb-0000-1000-8000-00805f9b34fb'
 
@@ -310,15 +435,13 @@ class HttpSecurityChrc(Characteristic):
                 self.CHRC_UUID,
                 ['read'],
                 service)
-        self.https_security = False
-        self.assign_read_value()
+        self.set_value(False)
 
-    def assign_read_value(self):
+    def set_value(self, value):
         """Can be called from ctor or by client service to change default
         value."""
-        byte_value = dbus.Byte(0x01 if self.https_security else 0x00)
-        self.value = [byte_value]
+        self._https_security = value
 
     def ReadValue(self, options):
-        return value
+        return [dbus.Booean(self._https_security)]
 
