@@ -5,8 +5,6 @@
 
 ## Pre-Requisites
 
-
-
 On Raspian, the functionality as described below required an upgrade to the latest kernel kernel 1.20170427
 and may only partially work with older Raspian version.
 
@@ -86,23 +84,36 @@ btmgmt -i hci0 power on
 
 ## Install Manylabs BLE Service (flow-ble)
 
-Assuming flow-ble source has been installed in /user/pi/flow-ble via
-
-git clone https://github.com/manylabs/flow-ble
-
-You follow these steps:
-
-* Copy ble and advertisement service to service location and enable service
+Aassuming flow-ble source has been installed in /home/pi/flow-ble via
 
 ```bash
-sudo cp -i /user/pi/flow-ble/mlserver/flowble.service /etc/systemd/system/
-sudo cp -i /user/pi/flow-ble/mlserver/flowbleadv.service /etc/systemd/system/
+git clone https://github.com/manylabs/flow-ble
+```
+
+you will execute these commands to copy ble and advertisement service to service location and 
+to enable the service:
+
+```bash
+sudo cp -i /home/pi/flow-ble/gattserver/flowble.service /etc/systemd/system/
+sudo cp -i /home/pi/flow-ble/gattserver/flowbleadv.service /etc/systemd/system/
 sudo systemctl enable flowbleadv.service 
 sudo systemctl enable flowble.service 
 ```
 
 This will allow flowble to start on boot. You can skip the "systemctl enable" if
 you don't want the service to be started automatically at boot time.
+
+## Verify flow-ble Service Works
+
+To verify/test using Web Bluetooth, navigate to local or public flowble test URL.
+For local, you must have setup and started a local server via:
+
+
+```bash
+
+```
+
+
 
 ## Starting and Stopping the Service
 
@@ -144,13 +155,29 @@ $ systemctl status flowble.service
    Active: inactive (dead)
 ```
 
+
 ## Troubleshooting
 
 
+### Enable Verbose
+
+You can enable verbose in hpserver.py and bluetoothd like this:
+
+* in bluetoothd, enable option -d via
+  * edit configuration to contain this line
+  * .../bluetoothd -dE
+  * vi /etc/systemd/system/bluetooth.target.wants/bluetooth.service 
+* in hpserver.py
+ #verboseLevel = 0
+ verboseLevel = 2
+
+daemon.log when running as a service and stdout if running in dev mode
+will give information about what's failing
+
+### Logs
+
 If there is a problem, daemon.log can give clues.
-The trace below shows normail operation of the bluetooth daemon and flowble and flowbleadv daemons.
-
-
+The trace below shows normal operation of the bluetooth daemon and flowble and flowbleadv daemons.
 
 Sample daemon.log after starting Bluetooth service.
 
@@ -192,3 +219,39 @@ root       433  0.2  1.2  18580 11744 ?        Ss   11:17   0:00 /usr/bin/python
 root       435  0.4  1.4  30116 14180 ?        Ssl  11:17   0:00 python3 /home/pi/download/bluez-5.44/test/ml-gatt-server
 root       788  0.0  0.3   4856  3108 ?        Ss   11:17   0:00 /home/pi/download/bluez-5.44/src/bluetoothd -E
 ```
+
+## Performance
+
+This trace on the client using manylabsble.js library shows the following:
+
+* Initial delay between GET request and "data ready notification" via http_status is about 300ms
+* For websocket push, turn-around time is about 340ms between receiving "new data available" and completing data retrieval.
+  Plus there is some delay for each turn-around since notify transport probably takes 100-200ms, so 
+  the total is about 500ms
+
+This could be improved by pushing data directly in websocket mode instead of sending http_status notify first.
+That would reduce latency from when data becomes available on raspi and the time the client recieves it by
+about 20-30%.
+
+Trace of JavaScript (Chrome dev tool): Initial GET request to "notification received" trace (about 500ms)
+
+```
+18:16:59.075 manylabsble.js:179 requestGet
+18:16:59.345 app.js:45 handleHttpStatus.event characteristicvaluechanged
+18:16:59.354 app.js:58 handleHttpStatus.event: Retrieving body...
+```
+
+Trace of JavaScript (Chrome dev tool): Websocket pushing data via write http_status notification and body retrieval completion (about 340ms)
+
+```
+18:18:39.521 app.js:45 handleHttpStatus.event characteristicvaluechanged
+18:18:39.532 app.js:58 handleHttpStatus.event: Retrieving body...
+18:18:40.055 app.js:60 getHttpBody.body: {"timestamp":"2017-05-04T01:38:00.336090Z","type":"sensor_update","parameters":{"values":[12.0],"name":"light"}}
+18:18:41.472 app.js:45 handleHttpStatus.event characteristicvaluechanged
+18:18:41.473 app.js:58 handleHttpStatus.event: Retrieving body...
+18:18:41.810 app.js:60 getHttpBody.body: {"timestamp":"2017-05-04T01:38:00.336090Z","type":"sensor_update","parameters":{"values":[12.0],"name":"light"}}
+18:18:44.006 app.js:45 handleHttpStatus.event characteristicvaluechanged
+18:18:44.008 app.js:58 handleHttpStatus.event: Retrieving body...
+18:18:44.308 app.js:60 getHttpBody.body: {"timestamp":"2017-05-04T01:38:00.336090Z","type":"sensor_update","parameters":{"values":[12.0],"name":"light"}}
+```
+

@@ -27,6 +27,8 @@ process of setting up a new RasPi device from a browser:
   * Note: this is low priority future feature. There is a security concern
  that should be properly resolved
 
+
+
 ### Manylabs Realtime Service
 
 The realtime services will provide reporting of current value of one or more sensors.
@@ -67,9 +69,9 @@ TODO:
   - for now, the design assumes timestamps are identical accross sensors to 
     increase data throughput/efficiency for multipe sensors (e.g. all sensors report at 1 second interval or 1 minute interval)
 
-### Manylabs History and Block Watch Service
+### Manylabs HTTP Proxy Service
 
-The history and block watch service will use http_proxy standard GATT profile that allows http-like communication.
+The history and block watch BLE support will use http_proxy standard GATT profile that allows http-like communication.
 That will allow reuse of some of the current flow code and web app JavaScript that exchanges data as JSON.
 This can be later optimized to use smaller payloads.
 

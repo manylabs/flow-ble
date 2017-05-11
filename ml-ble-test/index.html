@@ -11,13 +11,18 @@
     <div id="raspi">
     </div>
     <div id="container">
-      <div id="statusText">
-        <img src="ml-raspi.jpg"/>
-      Select Device
+        <div id="statusText" >
+          <img src="ml-raspi.jpg" id="raspiImg" width="160px" />
+        <div id="buttonDiv" onClick="">
+          <button type="button" id="selectButton" >Select Device</button>
+          <button type="button" onClick="clear();">Clear</button>
+        </div>
+        </div>
+      <div id="responseText">
       </div>
       <canvas id="waves"></canvas>
     </div>
-    <script src="manylabsSensor.js"></script>
+    <script src="manylabsble.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
