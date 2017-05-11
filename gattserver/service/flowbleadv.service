@@ -3,9 +3,9 @@ Description=Manylabs Flow BLE Service Advertisement
 After=syslog.target bluetooth.target 
 
 [Service]
-PIDFile=/var/run/ml-advertisement.pid
+PIDFile=/var/run/mladvertise.pid
 #Type=simple
-ExecStart=/home/pi/download/bluez-5.44/test/ml-advertisement
+ExecStart=/home/pi/flow-ble/gattserver/mladvertise.py
 Restart=on-failure
 LimitNOFILE=10000
 

@@ -4,10 +4,10 @@ After=syslog.target bluetooth.target flowbleadv.service
 Requires=flowbleadv.service
 
 [Service]
-PIDFile=/var/run/ml-gatt-server.pid
+PIDFile=/var/run/hpserver.pid
 #Type=simple
 #WorkingDirectory=/usr/local/example
-ExecStart=/home/pi/download/bluez-5.44/test/ml-gatt-server
+ExecStart=/home/pi/flow-ble/gattserver/hpserver.py
 Restart=on-failure
 LimitNOFILE=10000
 

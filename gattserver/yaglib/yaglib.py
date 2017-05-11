@@ -12,19 +12,19 @@ Based on bluez 5.44 examples:
 ./test/example-advertisement
 
 """
+import sys
 import dbus
 import dbus.exceptions
 import dbus.mainloop.glib
 import dbus.service
 
 import array
-try:
-  from gi.repository import GObject
-except ImportError:
-  import gobject as GObject
-import sys
+from gi.repository import GObject
 
-from random import randint
+#try:
+#  from gi.repository import GObject
+#except ImportError: # Python 2.7?
+#  import gobject as GObject
 
 mainloop = None
 

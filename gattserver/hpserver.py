@@ -9,20 +9,41 @@ import threading
 #import gobject, gtk
 # python3
 import _thread as thread
+
+# this works in both Python 3.4.2 and 3.5.2
 from gi.repository import GObject as gobject
-from gi.repository import Gdk
+
+# this doesn't work on 3.4.2 (raspian) and there is 
+#  no easy replacement. Therefore 
+#  Gdk.threads_init()
+#  won't be invoked on raspian
+#from gi.repository import Gdk
+
+#try:
+#  # Python 3.5.2 (Ubuntu 16.04)
+#  from gi.repository import GObject as gobject
+#  print('hpserver: Python 3.5.2?')
+#except ImportError:
+#  print('hpserver: Python 3.4.2?')
+#  # Python 3.4.2 (RasPI)
+#  #import gobject
+#  #gtk.gdk.threads_init()
 
 
+try:
+  # Python 3.5.2 (Ubuntu 16.04)
+  from gi.repository import Gdk
+  Gdk.threads_init()
+  print('hpserver: Python 3.5.2?')
+except ImportError:
+  print('hpserver: Python 3.4.2?')
+  # Python 3.4.2 (RasPI)
+  #import gobject
+  #gtk.gdk.threads_init()
+  pass
 
-
-#from gi.repository import GObject
 from yaglib import Application, GattManager
 from hpservice import HttpProxyService, HttpStatusCodeChrc, HttpControlPointChrc, HttpEntityBodyChrc, log
-
-
-#gtk.gdk.threads_init()
-# python3
-Gdk.threads_init()
 
 service = None
 

@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
+#--!/usr/bin/env python3
 """Minimal advertisement that allows mlgatt service to be
 discovered.
 This is temporary - 
@@ -14,9 +15,11 @@ import dbus.mainloop.glib
 import dbus.service
 
 import array
+# Python 2.7
 import gobject
+# Python 3.4, 3.5
+#from gi.repository import GObject as gobject
 
-from random import randint
 
 mainloop = None
 
@@ -108,17 +111,17 @@ class Advertisement(dbus.service.Object):
                          in_signature='s',
                          out_signature='a{sv}')
     def GetAll(self, interface):
-        print 'GetAll'
+        print('GetAll')
         if interface != LE_ADVERTISEMENT_IFACE:
             raise InvalidArgsException()
-        print 'returning props'
+        print('returning props')
         return self.get_properties()[LE_ADVERTISEMENT_IFACE]
 
     @dbus.service.method(LE_ADVERTISEMENT_IFACE,
                          in_signature='',
                          out_signature='')
     def Release(self):
-        print '%s: Released!' % self.path
+        print('%s: Released!' % self.path)
 
 class TestAdvertisement(Advertisement):
 
@@ -132,11 +135,11 @@ class TestAdvertisement(Advertisement):
 
 
 def register_ad_cb():
-    print 'Advertisement registered'
+    print('Advertisement registered')
 
 
 def register_ad_error_cb(error):
-    print 'Failed to register advertisement: ' + str(error)
+    print('Failed to register advertisement: ' + str(error))
     mainloop.quit()
 
 
@@ -145,6 +148,9 @@ def find_adapter(bus):
                                DBUS_OM_IFACE)
     objects = remote_om.GetManagedObjects()
 
+    # python 3
+    #for o, props in objects.iteritems():
+    # python 2.7
     for o, props in objects.iteritems():
         if LE_ADVERTISING_MANAGER_IFACE in props:
             return o
@@ -161,7 +167,7 @@ def main():
 
     adapter = find_adapter(bus)
     if not adapter:
-        print 'LEAdvertisingManager1 interface not found'
+        print('LEAdvertisingManager1 interface not found')
         return
 
     adapter_props = dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, adapter),
