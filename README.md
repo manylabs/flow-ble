@@ -114,7 +114,6 @@ For local, you must have setup and started a local server via:
 ```
 
 
-
 ## Starting and Stopping the Service
 
 We can use stardard Linux commands (running as root):
@@ -155,6 +154,30 @@ $ systemctl status flowble.service
    Active: inactive (dead)
 ```
 
+## Testing
+
+
+### Test via github.io webpages
+
+On a Chrome browser that supports a recent Web Bluetooth spec (e.g. Chrome 5.7+ on Mac OSX),
+load this page:
+
+https://manylabs.github.io/flow-ble/ml-ble-test/
+
+This web app tests the use of the Web Bluetooth API for getting sensor data from Manylabs RasPi device
+using HPS standard GATT service, with websocket extension specific to Manylabs.
+
+You can also run ml-ble-test locally from ml-ble-test directory:
+
+### Run Webapp Locally
+
+To run locally, start serving from app directory, e.g. like this:
+
+```bash
+./httpsserver.py 
+```
+
+Then navigate to https://localhost:4443/.
 
 ## Troubleshooting
 
