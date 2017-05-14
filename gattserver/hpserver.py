@@ -11,6 +11,8 @@ import threading
 import _thread as thread
 
 # this works in both Python 3.4.2 and 3.5.2
+__version__ = "0.1.01"
+
 from gi.repository import GObject as gobject
 
 # this doesn't work on 3.4.2 (raspian) and there is 
@@ -48,6 +50,7 @@ from hpservice import HttpProxyService, HttpStatusCodeChrc, HttpControlPointChrc
 service = None
 
 class GeneratorTask(object):
+   """Allows to invoke code to execute repeatedely from a thread."""
 
    def __init__(self, generator, loop_callback, complete_callback=None):
        self.generator = generator
@@ -71,7 +74,10 @@ class GeneratorTask(object):
        self.loop_callback(*ret)
 
    def start(self, *args, **kwargs):
-       threading.Thread(target=self._start, args=args, kwargs=kwargs).start()
+       th = threading.Thread(target=self._start, args=args, kwargs=kwargs)
+       # make program exit when main thread exits
+       th.daemon = True
+       th.start()
 
    def stop(self):
        self._stopped = True
