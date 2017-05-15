@@ -32,17 +32,24 @@ from gi.repository import GObject as gobject
 #  #gtk.gdk.threads_init()
 
 
+"""
+# disable Gdk.threads_init() for now since it doesn't work on raspi
+#  and threads work without it
 try:
   # Python 3.5.2 (Ubuntu 16.04)
+  import gi
+  # ./hpserver.py:37: PyGIWarning: Gdk was imported without specifying a version first. Use gi.require_version('Gdk', '3.0') before import to ensure that the right version gets loaded.
+  gi.require_version('Gdk', '3.0')
   from gi.repository import Gdk
   Gdk.threads_init()
-  print('hpserver: Python 3.5.2?')
+  print('hpserver: Python 3.5+')
 except ImportError:
-  print('hpserver: Python 3.4.2?')
+  print('hpserver: Python 3.4.x?')
   # Python 3.4.2 (RasPI)
   #import gobject
   #gtk.gdk.threads_init()
   pass
+"""
 
 from yaglib import Application, GattManager
 from hpservice import HttpProxyService, HttpStatusCodeChrc, HttpControlPointChrc, HttpEntityBodyChrc, log

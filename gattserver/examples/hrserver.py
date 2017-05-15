@@ -22,3 +22,11 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+def main2():
+    man = GattManager()
+    service = HttpProxyService(man, 0, charc_rw_cb)
+    man.add_service(service)
+    # start send next payload thread
+    GeneratorTask(send_next_payload_generator_thread, send_next_payload).start(service)
+    man.run()
