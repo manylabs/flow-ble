@@ -132,17 +132,8 @@ CONTROL_POINT_MAP = {
 
     connect() {
 
-
-      // TODO: use services filters when support for standard http_proxy name is added
-      //      to bluez implementation.
-      //return navigator.bluetooth.requestDevice({filters:[{services:[ "heart_rate" ]}]})
-
-      //log("deb1")
-      return navigator.bluetooth.requestDevice({
-        // filters: [...] <- Prefer filters to save energy & show relevant devices.
-        acceptAllDevices: true,
-        optionalServices: [HPS_SERVICE_UUID]})
-        
+      //console.log("deb1");
+      return navigator.bluetooth.requestDevice({filters:[{services:[ HPS_SERVICE_UUID ]}]})
       .then(device => {
         //log("deb2")
         this.device = device;
