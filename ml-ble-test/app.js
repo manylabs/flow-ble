@@ -52,7 +52,7 @@ function handleHttpStatus(heartRateMeasurement) {
     options = { hour12: false }
     var ts = new Date();
     var dt_prefix = ts.toLocaleTimeString('en-US', options) + ": ";
-    statusText.innerHTML = dt_prefix + "HTTP Status=" + http_status;
+    statusText.innerHTML = dt_prefix + "<br/>HTTP Status=" + http_status;
     if (http_status == manylabsBle.STATUS_BIT_BODY_RECEIVED) {
       // retrieve http body
       console.log("handleHttpStatus.event: Retrieving body...");
