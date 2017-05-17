@@ -3,12 +3,17 @@
 
 """
 import sys
+import datetime
 import time
+import zlib
 #import threading, thread
 import threading
 #import gobject, gtk
 # python3
 import _thread as thread
+
+
+
 
 # this works in both Python 3.4.2 and 3.5.2
 __version__ = "0.1.01"
@@ -53,8 +58,40 @@ except ImportError:
 
 from yaglib import Application, GattManager
 from hpservice import HttpProxyService, HttpStatusCodeChrc, HttpControlPointChrc, HttpEntityBodyChrc, log
+from mqttclient import MqttSubscriber
 
-service = None
+
+# set simulator this to True to not use mqtt, but to use simulated constant JSON 
+#  packets instead
+simulator = False
+
+def on_message(client, userdata, msg):
+    """Mqtt receiver function, forwards packets of JSON payload received to BLE 'websocket'.
+    Args:
+     client: paho mqtt client
+     userdata: holds service instance
+     msg: MQTTMessage class, which has members topic, payload, qos, retain and mid.
+    """
+    service = userdata
+    try:
+        # TODO: if body longer than 512, zlib.compress
+        body = bytearray(msg.payload).decode(encoding='UTF-8')
+        #body = str(msg.payload)
+    except UnicodeDecodeError:
+        print("on_message: Can't decode utf-8")
+        return
+    except Exception as err:
+        print("on_message: Error occured: %s" % err)
+        return
+
+    #print("%s: %s" % (time.ctime(), body))
+    print("%s: %s" % (datetime.datetime.isoformat(datetime.datetime.now()), body))
+    #print(msg.topic+" "+str(msg.qos)+" "+str(msg.payload) + "; userdata=%s" % userdata) 
+    service.http_entity_body_chrc.set_http_entity_body(body)
+    service.http_status_code_chrc.do_notify() 
+
+
+#service = None
 
 class GeneratorTask(object):
    """Allows to invoke code to execute repeatedely from a thread."""
@@ -109,7 +146,7 @@ def charc_rw_cb(charc, read_or_write, options, value):
     	value: write or read value
 
     """
-    global service
+    #global service
     log("charc_rw_cb")
 
     if charc.CHRC_UUID == HttpControlPointChrc.CHRC_UUID:
@@ -131,12 +168,10 @@ def charc_rw_cb(charc, read_or_write, options, value):
             #if value == HttpControlPointChrc.CANCEL_CMD:
             #elif value == HttpControlPointChrc.GET_CMD or HttpControlPointChrc.GETS_CMD:
             #else ...
-            body = get_next_payload()
-            charc.service.http_entity_body_chrc.set_http_entity_body(body)
+
+            # set body received for subsequent notifications to work properly in websocket mode.
             charc.service.http_status_code_chrc.set_http_status_code(HttpStatusCodeChrc.STATUS_BIT_BODY_RECEIVED)
-            charc.service.http_status_code_chrc.do_notify()
-            if not service:
-                service = charc.service
+
     elif charc.CHRC_UUID == HttpEntityBodyChrc.CHRC_UUID:
         log("charc_rw_cb: HttpEntityBodyChrc CHRC_UUID=%s" % charc.CHRC_UUID)
     else:
@@ -167,8 +202,18 @@ def main():
     man = GattManager()
     service = HttpProxyService(man, 0, charc_rw_cb)
     man.add_service(service)
+    
     # start send next payload thread
-    GeneratorTask(send_next_payload_generator_thread, send_next_payload).start(service)
+    if simulator:
+        GeneratorTask(send_next_payload_generator_thread, send_next_payload).start(service)
+    else:
+        # TODO: load mqTopic from config
+        mqTopic = "websocket"
+        s = MqttSubscriber(mqTopic)
+        s.user_data_set(service)
+        s.start(on_message)
+
+
     man.run()
 
 if __name__ == '__main__':
