@@ -47,7 +47,7 @@ Note: although we are going to use a Python based approach via dbus, the
 notes below will be kept here for historical purposes.
 
 
-Similar/related projects:
+Similar/related projects and libaries:
 
 We need to serve multiple block values periodically
 
@@ -73,6 +73,10 @@ https://github.com/MostTornBrain/Waterrower
  * python3 required
  * https://github.com/getsenic/gatt-python
  * uses dbus
+
+* pygattlib
+ * https://bitbucket.org/OscarAcena/pygattlib
+ * python2 or 3
 
 ```
 - uses dbus for implementation, core code is about 1500 lines:
@@ -115,27 +119,33 @@ See GATT-PROFILE
 
 ### GATT BLE Flow Integration
 
+#### Intro
+
 Flow daemon currently provides upload data to the server.
 
 How do we implement communication between flow daemon and flow-ble which may run in another process?
 
-Although there are other approaches possible, one way to providing a clean and de-coupled communication between flow daemon and 
-flow-ble module would be to add the following features to flow daemon:
+Although there are other approaches possible, we decided to provide a clean and de-coupled approach
+to communication between flow daemon and flow-ble module via MQTT.
 
-* posting of real time block data to a queue, such as MQTT service 
-* flow-ble would serve the data to BLE client/Central/bluetooth-web app as it appears in MQTT
+This steers the implementation on RasPi towards a robust microservices architecture. 
+It also:
 
-This would steer the implementation on RasPi towards a robust microservices architecture, and also:
-
-* allow to have more flexibility in phased implementation of flow-ble, first in C (which is readily available with working samples in bluez),
+* allows to have more flexibility in phased implementation of flow-ble, first in C (which is readily available with working samples in bluez),
 and eventually in Python, if necessary
-* allow for a robust communication bus of different components as they evolve
-* allow elegant stora of history data and other data via a store layer workint off of MQTT
+* allows for a robust communication bus of different components as they evolve
+* allows elegant store of history data and other data via a store layer that subscribes to an MQTT topic
+
+#### Flow-Client to BLE Data Flow
+
+We are using MQTT service. This is how it works
+
+* Real time block data is published by Flow to an MQTT topic 
+* flow-ble subscribes to the topic and serves the data to BLE client/Central/bluetooth-web app as it appears in MQTT
 
 ## Other Changes Recommended for the Deployment and Data Flow
 
 Since Web BLE supports discovery, manylabs dataflow setup can be simplified by allowing
 manylabs browser UI to perform the discovery of rpi, then saving it in the configuration.
 Another feature could be to make manually inserting PIN on the server after running flow on rpi for the first time un-necessary.
-
 

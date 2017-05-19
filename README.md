@@ -3,7 +3,7 @@
 * Design: [BLE-design](BLE-design.md)
 * GATT Custom Profile Specification: Work in progress
 
-## Pre-Requisites
+## Pre-Requisites and Setup
 
 On Raspian, the functionality as described below required an upgrade to the latest kernel kernel 1.20170427
 and may only partially work with older Raspian version.
@@ -16,6 +16,23 @@ uname -a
 Linux peter-u16 4.4.0-75-generic #96-Ubuntu SMP Thu Apr 20 09:56:33 UTC 2017 x86_64 x86_64 x86_64 GNU/Linux
 peter@peter-u16:~$ cat /etc/issue
 Ubuntu 16.04.1 LTS \n \l
+```
+
+### Flow Integration Setup 
+
+Setup MQTT:
+
+```bash
+sudo apt-get install mosquitto mosquitto-clients
+# install mqtt python library for python2 and python3
+sudo pip2 install paho-mqtt
+sudo pip3 install paho-mqtt
+```
+
+Note: if pip3 fails, you may need to do the following update:
+
+```bash
+sudo pip3 install --upgrade setuptools
 ```
 
 ## Setting Up Bluetooth
@@ -142,11 +159,11 @@ systemctl status flowble.service
 $ sudo systemctl start flowble.service
 $ systemctl status flowble.service
 ● flowble.service - Manylabs Flow BLE Service
-   Loaded: loaded (/etc/systemd/system/flowble.service; disabled)
-   Active: active (running) since Sat 2017-05-06 09:18:45 PDT; 1s ago
- Main PID: 12619 (python3)
+   Loaded: loaded (/etc/systemd/system/flowble.service; enabled)
+   Active: active (running) since Mon 2017-05-15 14:28:01 PDT; 8min ago
+ Main PID: 2153 (python3)
    CGroup: /system.slice/flowble.service
-           └─12619 python3 /home/pi/download/bluez-5.44/test/ml-gatt-server
+           └─2153 python3 /home/pi/flow-ble/gattserver/hpserver.py
 $ sudo systemctl stop flowble.service
 $ systemctl status flowble.service
 ● flowble.service - Manylabs Flow BLE Service
@@ -154,6 +171,21 @@ $ systemctl status flowble.service
    Active: inactive (dead)
 ```
 
+flowbleadv service on which flowble service depends can be restarted separately as well.
+Note that flowbleadv restart will cause also flowble restart since that how 
+service dependency chain gets handled by systemctl.
+
+```bash
+systemctl restart flowbleadv.service
+systemctl status flowbleadv.service
+● flowbleadv.service - Manylabs Flow BLE Service Advertisement
+   Loaded: loaded (/etc/systemd/system/flowbleadv.service; enabled)
+   Active: active (running) since Mon 2017-05-15 14:27:36 PDT; 5min ago
+ Main PID: 2122 (python3)
+   CGroup: /system.slice/flowbleadv.service
+           └─2122 python3 /home/pi/flow-ble/gattserver/hpadvertise.py
+```
+           
 ## Testing
 
 
@@ -167,11 +199,34 @@ https://manylabs.github.io/flow-ble/ml-ble-test/
 This web app tests the use of the Web Bluetooth API for getting sensor data from Manylabs RasPi device
 using HPS standard GATT service, with websocket extension specific to Manylabs.
 
-You can also run ml-ble-test locally from ml-ble-test directory:
+
+After selecting device, if flowble service is running and processing data from flow, you'll 
+something like this in your browser.
+
+```
+06:39:51: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:39:52: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:39:53: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:39:54: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:39:55: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:39:56: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:39:58: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:39:58: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:39:59: {"type":"ping","parameters":{}}
+06:39:59: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:40:00: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:40:01: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:40:02: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:40:03: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:40:04: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:40:05: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:40:06: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+06:40:07: {"type":"sensor_update","parameters":{"values":[21.0],"name":"light"}}
+```
 
 ### Run Webapp Locally
 
-To run locally, start serving from app directory, e.g. like this:
+Alternatively, you can run ml-ble-test locally. Start serving from app directory, e.g. like this:
 
 ```bash
 ./httpsserver.py 
@@ -179,8 +234,46 @@ To run locally, start serving from app directory, e.g. like this:
 
 Then navigate to https://localhost:4443/.
 
+
+
+
 ## Troubleshooting
 
+### Startup
+
+The error below at startup of HPS server indicates a version mismatch for bluetooth daemon
+or bluetoothd not running with experimental option. Make sure the correct
+build > 5.44 is running with option "-E". 
+(This show manual running of hpserver rather than via flowble service.
+
+```
+./hpserver.py 
+Traceback (most recent call last):
+  File "./hpserver.py", line 141, in <module>
+    main()
+  File "./hpserver.py", line 133, in main
+    man = GattManager()
+  File "/home/peter/git-clones/flow-ble/gattserver/yaglib/yaglib.py", line 321, in __init__
+    self.bus.get_object(BLUEZ_SERVICE_NAME, self.adapter),
+  File "/usr/lib/python3/dist-packages/dbus/bus.py", line 241, in get_object
+    follow_name_owner_changes=follow_name_owner_changes)
+  File "/usr/lib/python3/dist-packages/dbus/proxies.py", line 244, in __init__
+    _dbus_bindings.validate_object_path(object_path)
+TypeError: validate_object_path() argument 1 must be str, not None
+```
+
+To query bluetoothd version:
+
+```
+./src/bluetoothd --version
+5.44
+```
+
+The error below at startup of Advertisement server indicates bluetooth daemon is not running.
+
+```
+Failed to register advertisement: org.bluez.Error.Failed: Failed to register advertisement
+```
 
 ### Enable Verbose
 
@@ -237,10 +330,21 @@ After services have been started properly, you should see the 3 lines below
 in "ps" command output.
 
 ```bash
-ps aux  |egrep "bash|gatt|blue|example"
-root       433  0.2  1.2  18580 11744 ?        Ss   11:17   0:00 /usr/bin/python /home/pi/download/bluez-5.44/test/ml-advertisement
-root       435  0.4  1.4  30116 14180 ?        Ssl  11:17   0:00 python3 /home/pi/download/bluez-5.44/test/ml-gatt-server
-root       788  0.0  0.3   4856  3108 ?        Ss   11:17   0:00 /home/pi/download/bluez-5.44/src/bluetoothd -E
+# search for relevant processes
+ps aux  | grep -v grep |egrep "hpadvertise|hpserver|bluetoothd"
+root       753  0.0  0.3   4852  3408 ?        Ss   14:14   0:00 /home/pi/download/bluez-5.44/src/bluetoothd -E
+root      2122  1.4  1.3  28032 12624 ?        Ssl  14:27   0:00 python3 /home/pi/flow-ble/gattserver/hpadvertise.py
+root      2153 10.0  1.4  39204 14036 ?        Ssl  14:28   0:00 python3 /home/pi/flow-ble/gattserver/hpserver.py
+```
+
+You can also use systemctl list-units to view relevant services.
+Note: flow.service will be seen on newer versions of flow after May 20 commits
+
+```bash
+systemctl list-units|grep -i Manylabs
+flow.service            loaded active running   Manylabs Flow Service
+flowble.service         loaded active running   Manylabs Flow BLE Service
+flowbleadv.service      loaded active running   Manylabs Flow BLE Service Advertisement
 ```
 
 ## Performance

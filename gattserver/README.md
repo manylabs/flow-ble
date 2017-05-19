@@ -17,6 +17,11 @@ See:
 ./examples/testservice.py
 ```
 
+## Requirements
+
+python3-dbus installed via apt-get
+
+apt-get install python3-dbus
 
 
 ### Running flow ble server and Testing 
