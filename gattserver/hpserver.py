@@ -5,6 +5,7 @@
 import sys
 import datetime
 import time
+import json
 import zlib
 #import threading, thread
 import threading
@@ -64,6 +65,11 @@ from mqttclient import MqttSubscriber
 # set simulator this to True to not use mqtt, but to use simulated constant JSON 
 #  packets instead
 simulator = False
+lastBody = None
+
+# set flush for trace output to daemon.log
+import functools
+print = functools.partial(print, flush=True)
 
 def on_message(client, userdata, msg):
     """Mqtt receiver function, forwards packets of JSON payload received to BLE 'websocket'.
@@ -72,11 +78,33 @@ def on_message(client, userdata, msg):
      userdata: holds service instance
      msg: MQTTMessage class, which has members topic, payload, qos, retain and mid.
     """
+    global lastBody
     service = userdata
     try:
         # TODO: if body longer than 512, zlib.compress
         body = bytearray(msg.payload).decode(encoding='UTF-8')
+
+        """
+        try:
+            # filter out some payloads
+            bodyjson = json.loads(body)
+            if bodyjson.get("type") == "update_sequence":
+                # skip 
+                print("%s: skipping: %s" % (datetime.datetime.isoformat(datetime.datetime.now()), body))
+                return 
+        except:
+            print("Can't decode json: %s..." % body[:10])
+        """
+
         #body = str(msg.payload)
+        if not lastBody or lastBody != body:
+            lastBody = body
+            #print("%s: %s" % (time.ctime(), body))
+            print("%s: %s" % (datetime.datetime.isoformat(datetime.datetime.now()), body))
+            #print(msg.topic+" "+str(msg.qos)+" "+str(msg.payload) + "; userdata=%s" % userdata) 
+            service.http_entity_body_chrc.set_http_entity_body(body)
+            service.http_status_code_chrc.do_notify() 
+
     except UnicodeDecodeError:
         print("on_message: Can't decode utf-8")
         return
@@ -84,11 +112,6 @@ def on_message(client, userdata, msg):
         print("on_message: Error occured: %s" % err)
         return
 
-    #print("%s: %s" % (time.ctime(), body))
-    print("%s: %s" % (datetime.datetime.isoformat(datetime.datetime.now()), body))
-    #print(msg.topic+" "+str(msg.qos)+" "+str(msg.payload) + "; userdata=%s" % userdata) 
-    service.http_entity_body_chrc.set_http_entity_body(body)
-    service.http_status_code_chrc.do_notify() 
 
 
 #service = None
@@ -208,7 +231,7 @@ def main():
         GeneratorTask(send_next_payload_generator_thread, send_next_payload).start(service)
     else:
         # TODO: load mqTopic from config
-        mqTopic = "websocket"
+        mqTopic = "flow/ble"
         s = MqttSubscriber(mqTopic)
         s.user_data_set(service)
         s.start(on_message)
