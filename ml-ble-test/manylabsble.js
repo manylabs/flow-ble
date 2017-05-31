@@ -2,7 +2,7 @@
 
 Manylabs Web Bluetooth (BLE) functionality.
 
-ManylabHpsBle class encapsulates client access to Manylabs HTTP proxy service and 
+ManylabsBle class encapsulates client access to Manylabs HTTP proxy service and 
 is based on some code from googlechrome and webbluetoothcg examples:
 
   https://googlechrome.github.io/samples/web-bluetooth/index.html

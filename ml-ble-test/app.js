@@ -39,12 +39,11 @@ button.addEventListener('click', function() {
 });
 
 
-function handleHttpStatus(heartRateMeasurement) {
+function handleHttpStatus(httpStatus) {
   console.log("handleHttpStatus")
-  heartRateMeasurement.addEventListener('characteristicvaluechanged', event => {
+  httpStatus.addEventListener('characteristicvaluechanged', event => {
     console.log("handleHttpStatus.event characteristicvaluechanged")
     //console.log("event.target.value=" + event.target.value);
-    //var heartRateMeasurement = manylabsBle.parseHeartRate(event.target.value);
     var value = event.target.value;
     // In Chrome 50+, a DataView is returned instead of an ArrayBuffer.
     value = value.buffer ? value : new DataView(value);
@@ -66,68 +65,9 @@ function handleHttpStatus(heartRateMeasurement) {
     } else {
       console.log("handleHttpStatus.event: Body not received: http_status=" + http_status);
     }
-    /*
-    statusText.innerHTML = heartRateMeasurement.heartRate;
-    //statusText.innerHTML = heartRateMeasurement.heartRate + ' &#x2764;';
-    heartRates.push(heartRateMeasurement.heartRate);
-    if (heartRates.length > 50) {
-      heartRates = heartRates.slice(5);
-    }
-    drawWaves();
-    */
   });
 }
 
-var heartRates = [];
 var mode = 'bar';
 
-canvas.addEventListener('click', event => {
-  mode = mode === 'bar' ? 'line' : 'bar';
-  drawWaves();
-});
 
-function drawWaves() {
-  requestAnimationFrame(() => {
-    //console.log("heartRates.length: " + heartRates.length);
-    canvas.width = parseInt(getComputedStyle(canvas).width.slice(0, -2)) * devicePixelRatio;
-    canvas.height = parseInt(getComputedStyle(canvas).height.slice(0, -2)) * devicePixelRatio;
-
-    var context = canvas.getContext('2d');
-    var margin = 2;
-    var max = Math.max(0, Math.round(canvas.width / 11));
-    var offset = Math.max(0, heartRates.length - max);
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.strokeStyle = '#00796B';
-    if (mode === 'bar') {
-      for (var i = 0; i < Math.max(heartRates.length, max); i++) {
-        var barHeight = Math.round(heartRates[i + offset ] * canvas.height / 200);
-        context.rect(11 * i + margin, canvas.height - barHeight, margin, Math.max(0, barHeight - margin));
-        context.stroke();
-      }
-    } else if (mode === 'line') {
-      context.beginPath();
-      context.lineWidth = 6;
-      context.lineJoin = 'round';
-      context.shadowBlur = '1';
-      context.shadowColor = '#333';
-      context.shadowOffsetY = '1';
-      for (var i = 0; i < Math.max(heartRates.length, max); i++) {
-        var lineHeight = Math.round(heartRates[i + offset ] * canvas.height / 200);
-        if (i === 0) {
-          context.moveTo(11 * i, canvas.height - lineHeight);
-        } else {
-          context.lineTo(11 * i, canvas.height - lineHeight);
-        }
-        context.stroke();
-      }
-    }
-  });
-}
-
-window.onresize = drawWaves;
-
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
-    drawWaves();
-  }
-});

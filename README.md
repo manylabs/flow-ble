@@ -337,7 +337,7 @@ root      2122  1.4  1.3  28032 12624 ?        Ssl  14:27   0:00 python3 /home/p
 root      2153 10.0  1.4  39204 14036 ?        Ssl  14:28   0:00 python3 /home/pi/flow-ble/gattserver/hpserver.py
 ```
 
-You can also use systemctl list-units to view relevant services.
+You can also use systemctl list-units or status to view relevant services.
 Note: flow.service will be seen on newer versions of flow after May 20 commits
 
 ```bash
@@ -345,6 +345,28 @@ systemctl list-units|grep -i Manylabs
 flow.service            loaded active running   Manylabs Flow Service
 flowble.service         loaded active running   Manylabs Flow BLE Service
 flowbleadv.service      loaded active running   Manylabs Flow BLE Service Advertisement
+
+# show status for all flow services
+systemctl status 'flow*' 
+● flow.service - Manylabs Flow Service
+   Loaded: loaded (/etc/systemd/system/flow.service; enabled)
+   Active: failed (Result: start-limit) since Sat 2017-05-20 14:24:29 PDT; 1min 10s ago
+  Process: 20869 ExecStart=/home/pi/flow/flowservice.sh (code=exited, status=1/FAILURE)
+ Main PID: 20869 (code=exited, status=1/FAILURE)
+
+● flowble.service - Manylabs Flow BLE Service
+   Loaded: loaded (/etc/systemd/system/flowble.service; enabled)
+   Active: active (running) since Sat 2017-05-20 14:08:21 PDT; 17min ago
+ Main PID: 19982 (python3)
+   CGroup: /system.slice/flowble.service
+           └─19982 python3 /home/pi/flow-ble/gattserver/hpserver.py
+
+● flowbleadv.service - Manylabs Flow BLE Service Advertisement
+   Loaded: loaded (/etc/systemd/system/flowbleadv.service; enabled)
+   Active: active (running) since Thu 2017-05-18 18:41:22 PDT; 1 day 19h ago
+ Main PID: 6650 (python3)
+   CGroup: /system.slice/flowbleadv.service
+           └─6650 python3 /home/pi/flow-ble/gattserver/hpadvertise.py
 ```
 
 ## Performance
