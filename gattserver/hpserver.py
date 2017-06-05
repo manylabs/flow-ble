@@ -5,6 +5,7 @@
 import sys
 import datetime
 import time
+import logging
 import json
 import zlib
 #import threading, thread
@@ -18,6 +19,9 @@ import _thread as thread
 
 # this works in both Python 3.4.2 and 3.5.2
 __version__ = "0.1.01"
+
+
+
 
 from gi.repository import GObject as gobject
 
@@ -65,11 +69,42 @@ from mqttclient import MqttSubscriber
 # set simulator this to True to not use mqtt, but to use simulated constant JSON 
 #  packets instead
 simulator = False
+# set to False to eliminate DEBUG level log.
+verbose = True
+
+# preinitialize lastBody saved
 lastBody = None
 
 # set flush for trace output to daemon.log
 import functools
 print = functools.partial(print, flush=True)
+
+def init_logging():
+    formatter = logging.Formatter('%(asctime)s: %(levelname)s: %(message)s')
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG if verbose else logging.INFO)
+    console_handler.setFormatter(formatter)
+    root = logging.getLogger()
+    root.addHandler(console_handler)
+    root.setLevel(logging.DEBUG)
+
+init_logging()
+
+#logging.setLevel(logging.DEBUG if verbose else logging.INFO)
+#logging.setLevel(logging.DEBUG if verbose else logging.INFO)
+
+def needsCompression(body):
+    """Determins if compression is needed.
+    """
+    return len(body) > 512
+
+def compress(body):
+    """Performs compression of payload.
+    """
+    orig_len = len(body)
+    body = zlib.compress(body)
+    logging.debug("compressed from %d to %d bytes" % (orig_len, len(body)))
+    return body
 
 def on_message(client, userdata, msg):
     """Mqtt receiver function, forwards packets of JSON payload received to BLE 'websocket'.
@@ -83,33 +118,28 @@ def on_message(client, userdata, msg):
     try:
         # TODO: if body longer than 512, zlib.compress
         body = bytearray(msg.payload).decode(encoding='UTF-8')
-
-        """
-        try:
-            # filter out some payloads
-            bodyjson = json.loads(body)
-            if bodyjson.get("type") == "update_sequence":
-                # skip 
-                print("%s: skipping: %s" % (datetime.datetime.isoformat(datetime.datetime.now()), body))
-                return 
-        except:
-            print("Can't decode json: %s..." % body[:10])
-        """
-
         #body = str(msg.payload)
         if not lastBody or lastBody != body:
             lastBody = body
-            #print("%s: %s" % (time.ctime(), body))
-            print("%s: %s" % (datetime.datetime.isoformat(datetime.datetime.now()), body))
+            logging.debug("%s: %s" % (datetime.datetime.isoformat(datetime.datetime.now()), body))
+            # check if compressed
+            if needsCompression(body):
+                body = compress(msg.payload)
+                #logging.debug("compressed body start %s" % body[:5])
+            # compressed body start b'x\x9c\xed\x97M'
+            #if body[:2] == b'x\x9c': 
+            #    logging.debug("body is compressed") 
+            #else:
+            #    logging.debug("body is not compressed")
             #print(msg.topic+" "+str(msg.qos)+" "+str(msg.payload) + "; userdata=%s" % userdata) 
             service.http_entity_body_chrc.set_http_entity_body(body)
             service.http_status_code_chrc.do_notify() 
 
     except UnicodeDecodeError:
-        print("on_message: Can't decode utf-8")
+        logging.error("on_message: Can't decode utf-8")
         return
     except Exception as err:
-        print("on_message: Error occured: %s" % err)
+        logging.error("on_message: Error occured: %s" % err)
         return
 
 

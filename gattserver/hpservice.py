@@ -235,10 +235,14 @@ class HttpEntityBodyChrc(Characteristic):
             self.http_entity_body_encoded = []
         else:
             #value = array('B', b'This is a characteristic for testing')
-            value = array('b')
-            value.frombytes(self._http_entity_body.encode())
-            value = value.tolist()
-            self.http_entity_body_encoded = value 
+            if isinstance(self._http_entity_body, bytes):
+                # if _http_entity_body is bytes, no need to encode
+                self.http_entity_body_encoded = self._http_entity_body
+            else:
+                value = array('b')
+                value.frombytes(self._http_entity_body.encode())
+                value = value.tolist()
+                self.http_entity_body_encoded = value 
         log("set_http_entity_body: self._http_entity_body=%s" % self._http_entity_body)
         log("set_http_entity_body: self.http_entity_body_encoded=%s" % self.http_entity_body_encoded)
 
