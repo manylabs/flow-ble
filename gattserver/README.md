@@ -1,28 +1,23 @@
 # Raspberry PI Manylabs BLE GATT Server
 
-## yaglib
 
-yaglib (Yet Another Gatt LIBrary) provide peripheral server side support
-based on bluez dbus API.
-It is based on examples from bluez-5.44 source distributions: bluez/test/example-get-server
+## Installing yaglib
 
-yaglib has been tested with Python3 only
-
-Currently, examples directory contains one server example that simulates heart rate service:
-
-See:
-```
-./examples/hrserver.py
-./examples/hrservice.py
-./examples/testservice.py
-```
+Manylabs BLE GATT server uses yaglib.
+pip3 install git+git://github.com/manylabs/yaglib.git
 
 ## Requirements
 
 python3-dbus installed via apt-get
 
+```bash
 apt-get install python3-dbus
+```
 
+There is a dependency on a specific version of bluez as well.
+
+Also see:
+  https://github.com/manylabs/yaglib/blob/master/README.md#installation
 
 ### Running flow ble server and Testing 
 

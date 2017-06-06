@@ -35,6 +35,12 @@ Note: if pip3 fails, you may need to do the following update:
 sudo pip3 install --upgrade setuptools
 ```
 
+GATT server is dependent on paho-mqtt and yaglib. To install dependencies:
+
+```bash
+pip3 install -r gattserver/requirements.txt
+```
+
 ## Setting Up Bluetooth
 
 Assuming an older stock version of Bluetooth is already installed on your system,
