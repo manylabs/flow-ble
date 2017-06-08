@@ -62,8 +62,9 @@ except ImportError:
 """
 
 from yaglib import Application, GattManager
-from hpservice import HttpProxyService, HttpStatusCodeChrc, HttpControlPointChrc, HttpEntityBodyChrc, log
+from hpservice import HttpProxyService, HttpStatusCodeChrc, HttpControlPointChrc, HttpEntityBodyChrc
 from mqttclient import MqttSubscriber
+import dbus
 
 
 # set simulator this to True to not use mqtt, but to use simulated constant JSON 
@@ -72,12 +73,14 @@ simulator = False
 # set to False to eliminate DEBUG level log.
 verbose = True
 
-# preinitialize lastBody saved
-lastBody = None
+# value between 0.5 and 1. works
+read_done_timeout = 1.0
+#delay_before_read = 1.0
+delay_before_read = 0.1
 
 # set flush for trace output to daemon.log
-import functools
-print = functools.partial(print, flush=True)
+#import functools
+#print = functools.partial(print, flush=True)
 
 def init_logging():
     formatter = logging.Formatter('%(asctime)s: %(levelname)s: %(message)s')
@@ -90,13 +93,11 @@ def init_logging():
 
 init_logging()
 
-#logging.setLevel(logging.DEBUG if verbose else logging.INFO)
-#logging.setLevel(logging.DEBUG if verbose else logging.INFO)
-
 def needsCompression(body):
     """Determins if compression is needed.
     """
-    return len(body) > 512
+    return len(body) > 100
+    #return len(body) > 512
 
 def compress(body):
     """Performs compression of payload.
@@ -108,32 +109,70 @@ def compress(body):
 
 def on_message(client, userdata, msg):
     """Mqtt receiver function, forwards packets of JSON payload received to BLE 'websocket'.
+
+    Uses two queues to keep messages that may arrive faster/in bursts than they can be pushed to client.
+    We'll be using queues like this:
+     * low piority queue for update_diagram type of JSON messages
+     * high piority queue for other  types of JSON messages
+
+    update_diagram message type can be discarded if it hasn't been sent out 
+    before the next message of the same time has arrived.
+
+    Sample payloads received:
+      {"type": "update_diagram", "parameters": {"values": {"1": "197.0", "2": "25.22", "3": "222.22"}}}
+      {"type": "diagram_list", "parameters": {"diagrams": ...
+
     Args:
      client: paho mqtt client
      userdata: holds service instance
      msg: MQTTMessage class, which has members topic, payload, qos, retain and mid.
     """
-    global lastBody
+    #global lastBody
     service = userdata
     try:
         # TODO: if body longer than 512, zlib.compress
         body = bytearray(msg.payload).decode(encoding='UTF-8')
-        #body = str(msg.payload)
-        if not lastBody or lastBody != body:
-            lastBody = body
-            logging.debug("%s: %s" % (datetime.datetime.isoformat(datetime.datetime.now()), body))
-            # check if compressed
-            if needsCompression(body):
-                body = compress(msg.payload)
-                #logging.debug("compressed body start %s" % body[:5])
-            # compressed body start b'x\x9c\xed\x97M'
-            #if body[:2] == b'x\x9c': 
-            #    logging.debug("body is compressed") 
-            #else:
-            #    logging.debug("body is not compressed")
-            #print(msg.topic+" "+str(msg.qos)+" "+str(msg.payload) + "; userdata=%s" % userdata) 
-            service.http_entity_body_chrc.set_http_entity_body(body)
-            service.http_status_code_chrc.do_notify() 
+        jsonobj = json.loads(body)
+        mtype = jsonobj.get("type")
+        if mtype == "update_diagram":
+            if service.last_update_message == body:
+                logging.debug("repeat update message: skipping: %s" % body)
+                return
+            if service.last_large_body_ts + datetime.timedelta(seconds=1) > datetime.datetime.now():
+                logging.debug("update message while receiving sending large payloads: skipping: %s" % body)
+                # but update last body to induce post-diagram list update
+                service.last_update_message = body
+                return
+                
+            service.last_update_message = body
+            service.last_update_ts = datetime.datetime.now()
+        logging.debug("%s: %s" % (datetime.datetime.isoformat(datetime.datetime.now()), body))
+        # check if compressed
+        if needsCompression(body):
+            body = compress(msg.payload)
+            #logging.debug("compressed body start %s" % body[:5])
+            logging.debug("compressed payload %d -> %d" % (len(msg.payload), len(body)))
+        # compressed body start b'x\x9c\xed\x97M'
+        #if body[:2] == b'x\x9c': 
+        #    logging.debug("body is compressed") 
+        #else:
+        #    logging.debug("body is not compressed")
+        #print(msg.topic+" "+str(msg.qos)+" "+str(msg.payload) + "; userdata=%s" % userdata) 
+
+        # before signaling new payload, wait for previous read op to complete
+        #  or timeout after 0.5s or so
+        rc = service.read_event.wait(timeout=read_done_timeout)
+        if not rc:
+            logging.debug("read_event timeout")
+        else:
+            logging.debug("no read_event timeout")
+        extra_delay = delay_before_read
+        if len(service.http_entity_body_chrc.get_http_entity_body()) > 100:
+            extra_delay =+ 1.0
+        time.sleep(extra_delay)
+        service.read_event.clear()
+        service.http_entity_body_chrc.set_http_entity_body(body)
+        service.http_status_code_chrc.do_notify() 
 
     except UnicodeDecodeError:
         logging.error("on_message: Can't decode utf-8")
@@ -189,7 +228,7 @@ def get_next_payload():
     return body
 
 def charc_rw_cb(charc, read_or_write, options, value):
-    """Control point write callback.
+    """Control point read/write callback.
     Called before Read or Write completes and returns from
     Characteristics processing.
     Args: 
@@ -200,7 +239,7 @@ def charc_rw_cb(charc, read_or_write, options, value):
 
     """
     #global service
-    log("charc_rw_cb")
+    logging.debug("charc_rw_cb: read_or_write=%s, options=%s" % (read_or_write, options))
 
     if charc.CHRC_UUID == HttpControlPointChrc.CHRC_UUID:
         """
@@ -214,7 +253,7 @@ def charc_rw_cb(charc, read_or_write, options, value):
      * now that data is ready, a notification is triggered on http_status_code characteristic
 
         """
-        log("charc_rw_cb: HttpControlPointChrc")
+        logging.debug("charc_rw_cb: HttpControlPointChrc")
         if read_or_write == 'write':
             # TODO: implement cancel
             # CONTROL_POINT_CANCEL_CMD
@@ -226,21 +265,28 @@ def charc_rw_cb(charc, read_or_write, options, value):
             charc.service.http_status_code_chrc.set_http_status_code(HttpStatusCodeChrc.STATUS_BIT_BODY_RECEIVED)
 
     elif charc.CHRC_UUID == HttpEntityBodyChrc.CHRC_UUID:
-        log("charc_rw_cb: HttpEntityBodyChrc CHRC_UUID=%s" % charc.CHRC_UUID)
+        logging.debug("charc_rw_cb: HttpEntityBodyChrc CHRC_UUID=%s" % charc.CHRC_UUID)
+        if read_or_write == 'read':
+            offset = options.get(dbus.String('offset')).real if options.get(dbus.String('offset')) else 0
+            if offset > 0:
+                charc.service.last_large_body_ts = datetime.datetime.now()
+            # mark read done
+            charc.service.read_event.set()
     else:
-        log("charc_rw_cb: Unknown: CHRC_UUID=%s" % charc.CHRC_UUID)
+        logging.debug("charc_rw_cb: Unknown: CHRC_UUID=%s" % charc.CHRC_UUID)
 
 def send_next_payload(service):
     #if not service:
     #    return
     if service.http_control_point_chrc.value not in [HttpControlPointChrc.GET, HttpControlPointChrc.GETS]:
-        log("send_next_payload skipped since service.http_control_point_chrc.value is %d" \
+        logging.debug("send_next_payload skipped since service.http_control_point_chrc.value is %d" \
           % service.http_control_point_chrc.value)
         return
     else:
-        log("send_next_payload - sending")
+        logging.debug("send_next_payload - sending")
         body = get_next_payload()
         service.http_entity_body_chrc.set_http_entity_body(body)
+        service.status = HttpProxyService.CHRC_READ_PENDING
         service.http_status_code_chrc.do_notify() 
 
 def send_next_payload_generator_thread(service):
@@ -248,7 +294,7 @@ def send_next_payload_generator_thread(service):
     while True:
         count += 1
         time.sleep(2)
-        log("count: %d" % count)
+        logging.debug("count: %d" % count)
         yield service
 
 def main():

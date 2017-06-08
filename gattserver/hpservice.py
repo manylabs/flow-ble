@@ -60,8 +60,10 @@ Here is a more limited the sequence flow-ble service will need:
 
 """
 
+import datetime
 from array import array
 from random import randint
+import threading
 import dbus
 """Implements http_proxy service
 """
@@ -78,6 +80,10 @@ from yaglib import Service, Characteristic, Descriptor
 # 2: to allow both errors and info logging 
 #verboseLevel = 0
 verboseLevel = 1
+
+# set flush for trace output to daemon.log
+import functools
+print = functools.partial(print, flush=True)
 
 def log(message):
     if verboseLevel > 1:
@@ -147,6 +153,13 @@ class HttpProxyService(Service):
 
         """
         Service.__init__(self, bus, index, self.SERVICE_UUID, True)
+        # holds status between notification sent (read pending) and read done
+        #   read_complete event
+        self.read_event = threading.Event()
+        self.read_event.clear()
+        self.last_update_message = None
+        self.last_update_ts = None
+        self.last_large_body_ts = datetime.datetime.now()
         self.charc_rw_cb = charc_rw_cb
         self.add_characteristic(UriChrc(bus, 0, self))
         self.add_characteristic(HttpHeadersChrc(bus, 1, self))
@@ -163,24 +176,6 @@ class HttpProxyService(Service):
         """Adjust state if canceled. 
         This is not needed for this service and therefore is a noop."""
         pass 
-
-    def do_request_delete(self, method):
-        """Perform a synchronous request, 
-        using current values for uri, method etc.
-        Fill http_entity_body that can be retrieved by client.
-        Then initiate notification.
-
-        """
-        log("do_request: %s" % method)
-        if method != "GET":
-            log_error("Unsupported method: %s" % method)
-            raise FailedException("0x80")
-        #self.http_entity_body_chrc.http_entity_body = '{"timestamp": "2017-05-04T01:38:00.336090Z", "type": "sensor_update", "parameters": {"values": [12.0], "name": "light"}}'
-        self.http_entity_body_chrc.set_http_entity_body('{"timestamp":"2017-05-04T01:38:00.336090Z","type":"sensor_update","parameters":{"values":[12.0],"name":"light"}}')
-        # assume no header and body not truncated
-        status_code = STATUS_BIT_BODY_RECEIVED
-        self.http_status_code_chrc.set_http_status_code(status_code)
-
 
 class UriChrc(Characteristic):
     # https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.characteristic.uri.xml
@@ -228,6 +223,9 @@ class HttpEntityBodyChrc(Characteristic):
                 service)
         self._http_entity_body = ""
         self.set_http_entity_body(self._http_entity_body)
+
+    def get_http_entity_body(self):
+        return self._http_entity_body
 
     def set_http_entity_body(self, value):
         self._http_entity_body = value 
